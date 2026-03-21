@@ -4,11 +4,12 @@ import time
 import hashlib
 import json
 import sqlite3
+import importlib.util
 from datetime import datetime, timedelta
 from functools import lru_cache
 from urllib.parse import quote_plus, urlparse, parse_qs, unquote
 from typing import Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, is_dataclass
 from pathlib import Path
 
 import httpx
@@ -745,10 +746,14 @@ class BookCrawler:
             keepalive_expiry=30
         )
         
+        http2_enabled = importlib.util.find_spec("h2") is not None
+        if not http2_enabled:
+            print("[crawler] 'h2' not installed. Falling back to HTTP/1.1.")
+
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(CrawlerConfig.REQUEST_TIMEOUT),
             limits=limits,
-            http2=True,
+            http2=http2_enabled,
             verify=True  # Enable SSL verification
         ) as client:
             
@@ -792,8 +797,14 @@ class BookCrawler:
         # Limit results
         final_results = sorted_results[:CrawlerConfig.MAX_RESULTS]
         
-        # Cache results
-        cacheable = [asdict(r) for r in final_results]
+        # Cache results (BookResult is a Pydantic model, but keep safe fallbacks).
+        cacheable = [
+            r.model_dump() if hasattr(r, "model_dump")
+            else asdict(r) if is_dataclass(r)
+            else dict(r) if isinstance(r, dict)
+            else r.__dict__
+            for r in final_results
+        ]
         self.cache.set(book_name, cacheable)
         
         print(f"[crawler] Found {len(final_results)} unique PDF results for '{book_name}'")
