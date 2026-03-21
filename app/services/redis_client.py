@@ -21,7 +21,8 @@ async def get_redis() -> Redis:
                 host=settings.redis_host,
                 port=settings.redis_port,
                 password=settings.redis_password or None,
-                decode_responses=True,
+                # Keep raw bytes so binary cache values (e.g., JPEG previews) are safe.
+                decode_responses=False,
                 socket_timeout=5,
                 socket_connect_timeout=5,
                 retry_on_timeout=True,

@@ -3,7 +3,6 @@ import uuid
 from datetime import datetime
 
 import httpx
-import redis.exceptions
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -106,34 +105,40 @@ async def preview_pdf(url: str | None = Query(default=None)):
     if not url:
         raise HTTPException(status_code=400, detail="Missing URL parameter")
 
-    client = await get_redis()
     cache_key = f"preview:{url}"
-    
+    client = None
     try:
-        # Check cache first
-        cached_preview = await client.get(cache_key)
-        if cached_preview:
-            return Response(
-                content=cached_preview,
-                media_type="image/jpeg",
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "public, max-age=3600",
-                    "X-Cache": "hit",
-                },
-            )
-    except redis.exceptions.RedisError:
-        pass
+        client = await get_redis()
+    except Exception as exc:
+        print(f"[redis] Preview cache unavailable: {exc}")
+    
+    if client is not None:
+        try:
+            # Check cache first
+            cached_preview = await client.get(cache_key)
+            if cached_preview:
+                return Response(
+                    content=cached_preview,
+                    media_type="image/jpeg",
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "public, max-age=3600",
+                        "X-Cache": "hit",
+                    },
+                )
+        except Exception as exc:
+            print(f"[redis] Preview cache read error: {exc}")
 
     try:
         pdf_bytes, _ = await fetch_pdf_bytes(url)
         preview = first_page_preview_jpeg(pdf_bytes, scale=0.5, quality=55)
 
         # Cache preview for 24h
-        try:
-            await client.set(cache_key, preview, ex=60*60*24)
-        except redis.exceptions.RedisError:
-            pass
+        if client is not None:
+            try:
+                await client.set(cache_key, preview, ex=60*60*24)
+            except Exception as exc:
+                print(f"[redis] Preview cache write error: {exc}")
 
         return Response(
             content=preview,
