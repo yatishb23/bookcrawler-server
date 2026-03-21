@@ -16,14 +16,18 @@ VISITOR_KEY = "unique_visitors_crawler"
 
 app = FastAPI(title="PDF Crawler Backend", version="1.0.0")
 
+origins = [
+    "http://localhost:3000",
+    "https://bookcrawler.vercel.app/",  
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.on_event("startup")
 async def startup_event():
