@@ -159,56 +159,6 @@ async def preview_pdf(url: str | None = Query(default=None)):
         raise HTTPException(status_code=502, detail=f"Failed to render preview: {exc}") from exc
 
 
-@app.get("/api/v1/track")
-async def track_visitor(request: Request, response: Response):
-    """Track unique visitors (works even if Redis is down)"""
-    visitor_id = request.cookies.get("visitorId")
-
-    if not visitor_id:
-        visitor_id = str(uuid.uuid4())
-        response.set_cookie(
-            key="visitorId",
-            value=visitor_id,
-            httponly=True,
-            max_age=60 * 60 * 24 * 365,
-            path="/",
-            samesite="lax",
-        )
-        
-        # Try to track in Redis, but don't fail if it's down
-        try:
-            client = await get_redis()
-            await client.sadd(VISITOR_KEY, visitor_id)
-            count = await client.scard(VISITOR_KEY)
-        except Exception as e:
-            print(f"[redis] Tracking error: {e}")
-            count = 0
-        
-        return {"newVisitor": True, "count": count}
-
-    # Try to get count from Redis, but don't fail if it's down
-    try:
-        client = await get_redis()
-        count = await client.scard(VISITOR_KEY)
-    except Exception as e:
-        print(f"[redis] Stats fetch error: {e}")
-        count = 0
-    
-    return {"newVisitor": False, "count": count}
-
-
-@app.get("/api/v1/stats")
-async def stats():
-    """Get unique visitor count (returns 0 if Redis is unavailable)"""
-    try:
-        client = await get_redis()
-        count = await client.scard(VISITOR_KEY)
-        return {"uniqueVisitors": count}
-    except Exception as exc:
-        print(f"[redis] Stats error: {exc}")
-        return {"uniqueVisitors": 0}
-
-
 @app.post("/api/v1/books/save")
 async def save_book(book: SavedBook, request: Request, response: Response):
     """Save a book to user's collection (Redis-backed, scoped by visitorId)"""
