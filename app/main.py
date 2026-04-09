@@ -229,3 +229,44 @@ async def delete_saved_book(url: str = Query(...), request: Request = None):
     except Exception as exc:
         print(f"[redis] Delete book error: {exc}")
         return {"status": "error", "detail": "Failed to delete book", "url": url}
+
+
+@app.get("/api/v1/stats")
+async def get_stats():
+    """Get the number of unique visitors"""
+    try:
+        client = await get_redis()
+        count = await client.scard("unique_visitors_crawler")
+        return {"uniqueVisitors": count}
+    except Exception as exc:
+        print(f"[redis] Stats error: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch visitor count") from exc
+
+
+@app.get("/api/v1/track")
+async def track_visitor(request: Request, response: Response):
+    """Track unique visitors and return the count"""
+    try:
+        client = await get_redis()
+        existing = request.cookies.get("visitorId")
+
+        if not existing:
+            new_id = str(uuid.uuid4())
+            await client.sadd("unique_visitors_crawler", new_id)
+            count = await client.scard("unique_visitors_crawler")
+
+            response.set_cookie(
+                key="visitorId",
+                value=new_id,
+                httponly=True,
+                path="/",
+                max_age=60 * 60 * 24 * 365,
+                samesite="lax",
+            )
+            return {"newVisitor": True, "count": count}
+
+        count = await client.scard("unique_visitors_crawler")
+        return {"newVisitor": False, "count": count}
+    except Exception as exc:
+        print(f"[redis] Tracker error: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch visitor count") from exc
