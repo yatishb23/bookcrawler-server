@@ -38,6 +38,17 @@ async def fetch_pdf_bytes(url: str) -> tuple[bytes, str]:
     if is_html and not has_pdf_header:
         raise ValueError("Link returned a webpage, not a PDF file")
 
+    try:
+        with fitz.open(stream=body, filetype="pdf") as doc:
+            if len(doc) <= 50:
+                raise ValueError("PDF must have more than 50 pages")
+    except fitz.FileDataError:
+        raise ValueError("Invalid PDF file structure")
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"Error parsing PDF: {exc}")
+
     return body, content_type
 
 
