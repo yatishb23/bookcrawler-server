@@ -240,7 +240,7 @@ async def get_stats():
         return {"uniqueVisitors": count}
     except Exception as exc:
         print(f"[redis] Stats error: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to fetch visitor count") from exc
+        return {"uniqueVisitors": 0}
 
 
 @app.get("/api/v1/track")
@@ -261,7 +261,8 @@ async def track_visitor(request: Request, response: Response):
                 httponly=True,
                 path="/",
                 max_age=60 * 60 * 24 * 365,
-                samesite="lax",
+                samesite="none",
+                secure=True
             )
             return {"newVisitor": True, "count": count}
 
@@ -269,4 +270,4 @@ async def track_visitor(request: Request, response: Response):
         return {"newVisitor": False, "count": count}
     except Exception as exc:
         print(f"[redis] Tracker error: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to fetch visitor count") from exc
+        return {"newVisitor": False, "count": 0, "error": str(exc)}
