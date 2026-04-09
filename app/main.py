@@ -232,6 +232,7 @@ async def delete_saved_book(url: str = Query(...), request: Request = None):
 
 
 @app.get("/api/v1/stats")
+@app.get("/api/v1/stats/")
 async def get_stats():
     """Get the number of unique visitors"""
     try:
@@ -244,6 +245,9 @@ async def get_stats():
 
 
 @app.get("/api/v1/track")
+@app.get("/api/v1/track/")
+@app.post("/api/v1/track")
+@app.post("/api/v1/track/")
 async def track_visitor(request: Request, response: Response):
     """Track unique visitors and return the count"""
     try:
