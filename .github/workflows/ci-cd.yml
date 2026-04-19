@@ -13,7 +13,6 @@ jobs:
   ci:
     name: Python checks
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,16 +28,72 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Lint with ruff
+        run: |
+          pip install ruff
+          ruff check .
+
       - name: Compile application files
-        run: python -m compileall app
+        run: python -m compileall .
+
+      - name: Run tests
+        run: pytest --tb=short
+        continue-on-error: false
 
   docker:
-    name: Docker build
+    name: Docker build (PR validation)
     runs-on: ubuntu-latest
-
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t bookcrawler-backend .
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and tag Docker image
+        run: |
+          docker build -t bookcrawler-backend:${{ github.sha }} .
+          docker tag bookcrawler-backend:${{ github.sha }} bookcrawler-backend:latest
+
+      - name: Save Docker image
+        run: docker save bookcrawler-backend:latest | gzip > image.tar.gz
+
+      - name: Copy image to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: "image.tar.gz"
+          target: "/app/server"
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd /app/server
+            gunzip -c image.tar.gz | docker load
+            docker stop bookcrawler-backend || true
+            docker rm bookcrawler-backend || true
+            docker run -d \
+              --name bookcrawler-backend \
+              --restart unless-stopped \
+              -p 8000:8000 \
+              --env-file /app/.env \
+              bookcrawler-backend:latest
+            rm -f image.tar.gz
+            docker image prune -f
+            echo "✅ Deployment successful"
