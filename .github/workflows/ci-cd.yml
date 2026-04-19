@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     name: Python checks
@@ -16,10 +19,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install & Lint
-        run: |
-          pip install -r requirements.txt pytest ruff
-          ruff check .
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest ruff
+      - name: Lint
+        run: ruff check .
       - name: Run tests
         run: |
           if find . -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
@@ -33,8 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ci]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    # IMPORTANT: Ensure this matches the name in your screenshot exactly
-    environment: .env 
+    # Match the environment name from your screenshot exactly
+    environment: secrets 
     
     steps:
       - name: Checkout repository
@@ -66,14 +69,23 @@ jobs:
             sudo mkdir -p /app/server
             sudo mv /tmp/image.tar.gz /app/server/image.tar.gz
             cd /app/server
+            
+            # Load the new image
             gunzip -c image.tar.gz | docker load
+            
+            # Stop existing container
             docker stop bookcrawler-backend || true
             docker rm bookcrawler-backend || true
+            
+            # Start the new container
             docker run -d \
               --name bookcrawler-backend \
               --restart unless-stopped \
               -p 8000:8000 \
               --env-file /app/.env \
               bookcrawler-backend:latest
+            
+            # Cleanup
             rm -f image.tar.gz
             docker image prune -f
+            echo "✅ Deployment successful"
