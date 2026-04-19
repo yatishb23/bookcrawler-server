@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.models import SavedBook
 from app.services.crawler import search_book
-from app.services.pdf_service import fetch_pdf_bytes, first_page_preview_jpeg, extract_pdf_metadata
+from app.services.pdf_service import fetch_pdf_bytes, first_page_preview_jpeg
 from app.services.redis_client import get_redis, close_redis
 
 CACHE_EXPIRATION = 60 * 60 * 24

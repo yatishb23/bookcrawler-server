@@ -6,18 +6,15 @@ import json
 import sqlite3
 import importlib.util
 from datetime import datetime, timedelta
-from functools import lru_cache
 from urllib.parse import quote_plus, urlparse, parse_qs, unquote
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict, is_dataclass
 from pathlib import Path
 
 import httpx
 from bs4 import BeautifulSoup
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import aiofiles
 from fake_useragent import UserAgent
-import cloudscraper
 
 from app.models import BookResult
 from app.config import settings
@@ -140,7 +137,7 @@ class UserAgentManager:
         if self.ua:
             try:
                 return self.ua.random
-            except:
+            except Exception:
                 pass
         
         # Use custom agents as fallback

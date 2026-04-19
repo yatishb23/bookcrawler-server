@@ -1,4 +1,3 @@
-from io import BytesIO
 from urllib.parse import urlparse
 from datetime import datetime
 
