@@ -49,6 +49,7 @@ jobs:
   docker:
     name: Docker build (PR validation)
     runs-on: ubuntu-latest
+    
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout repository
