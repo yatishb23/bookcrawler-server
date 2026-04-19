@@ -20,6 +20,7 @@ from fake_useragent import UserAgent
 import cloudscraper
 
 from app.models import BookResult
+from app.config import settings
 
 # ============= CONFIGURATION =============
 class CrawlerConfig:
@@ -50,9 +51,9 @@ class CrawlerConfig:
     # Concurrency
     MAX_CONCURRENT_REQUESTS = 5
     
-    # Proxy settings (if available)
-    USE_PROXY = False
-    PROXY_LIST = []  # Add your proxies here
+    # Proxy settings
+    USE_PROXY = settings.use_proxy
+    PROXY_LIST = settings.proxy_list
     
     # User agents
     USE_FAKE_UA = True
@@ -163,15 +164,17 @@ class ProxyManager:
     
     def __init__(self):
         self.proxies = CrawlerConfig.PROXY_LIST
-        self.current_index = 0
     
     def get_proxy(self) -> Optional[Dict[str, str]]:
-        """Get next proxy in rotation"""
+        """Get a random proxy in rotation if enabled, sometimes skipping proxy to randomize"""
         if not self.proxies or not CrawlerConfig.USE_PROXY:
             return None
         
-        proxy = self.proxies[self.current_index % len(self.proxies)]
-        self.current_index += 1
+        # 10% chance to not use a proxy at all for more organic traffic
+        if random.random() < 0.1:
+            return None
+
+        proxy = random.choice(self.proxies)
         
         # Format proxy for httpx
         if proxy.startswith("http"):

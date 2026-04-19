@@ -8,8 +8,16 @@ class Settings(BaseSettings):
     redis_password: str = Field(default="", alias="REDIS_PASSWORD")
     frontend_origin: str = Field(default="http://localhost:3000", alias="FRONTEND_ORIGIN")
     frontend_origins: str = Field(default="", alias="FRONTEND_ORIGINS")
+    use_proxy: bool = Field(default=False, alias="USE_PROXY")
+    proxy_ips: str = Field(default="", alias="PROXY_IPS")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @property
+    def proxy_list(self) -> list[str]:
+        if not self.proxy_ips:
+            return []
+        return [p.strip() for p in self.proxy_ips.split(",") if p.strip()]
 
     @property
     def allowed_frontend_origins(self) -> list[str]:
