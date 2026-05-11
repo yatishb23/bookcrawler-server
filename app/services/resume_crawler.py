@@ -248,11 +248,11 @@ SEARCH_ENGINES_CONFIG = [
     SearchEngine(
         name="DuckDuckGo",
         urls=[
+            "https://duckduckgo.com/html/?q={q}+filetype:pdf",
+            "https://duckduckgo.com/html/?q={q}+pdf",
             "https://html.duckduckgo.com/html/?q={q}+filetype:pdf",
-            "https://html.duckduckgo.com/html/?q={q}+pdf",
         ],
         selectors=[
-            'a.result__url',
             'a.result__a',
             'a[data-testid="result-title-a"]',
             'a[class*="result"]',
@@ -292,9 +292,10 @@ SEARCH_ENGINES_CONFIG = [
             "https://search.yahoo.com/search?p={q}+pdf",
         ],
         selectors=[
-            'div[class*="algo"] div[class*="compTitle"] a',
             'a[href*=".pdf"]',
             'h3 a',
+            'div[class*="algo"] a',
+            'a[class*="title"]',
         ],
         headers={
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -558,7 +559,7 @@ class EnhancedHTTPClient:
     @retry(
         stop=stop_after_attempt(CrawlerConfig.MAX_RETRIES),
         wait=wait_exponential(multiplier=1, min=CrawlerConfig.RETRY_WAIT_MIN, max=CrawlerConfig.RETRY_WAIT_MAX),
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.ReadError, Exception))
+        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.ReadError))
     )
     async def fetch(self, url: str, engine: SearchEngine, client: httpx.AsyncClient) -> Optional[str]:
         """Fetch URL with retries and error handling"""
@@ -596,7 +597,7 @@ class EnhancedHTTPClient:
                 # Rate limited - wait longer
                 wait_time = random.uniform(5, 15)
                 await asyncio.sleep(wait_time)
-                raise Exception("Rate limited")
+                raise Exception("Rate limited: 429 Too Many Requests")
             else:
                 print(f"[crawler] {engine.name} returned status {response.status_code}")
                 return None
@@ -725,24 +726,18 @@ class BookCrawler:
         self.processor = ResultProcessor()
         self.cache = SearchCache()
     
-    async def search(self, first_name: str, last_name: str) -> List[BookResult]:
+    async def search(self, book_name: str) -> List[BookResult]:
         """Main search method with full pipeline"""
 
         # Keep input as-is; only reject truly empty input.
-        if not first_name or not last_name:
+        if book_name == "":
             return []
-            
-        f_name = first_name.strip()
-        l_name = last_name.strip()
         
-        # Simple, effective query to not break search engine limits
-        search_query = f'"{f_name} {l_name}" OR "{f_name}_{l_name}" OR "{f_name}{l_name}" resume OR cv'
-        
-        # Check cache
-        cached = self.cache.get(search_query)
-        if cached is not None:
-            print(f"[crawler] Using cached results for '{search_query}'")
-            return [BookResult(**r) for r in cached]
+        # # Check cache
+        # cached = self.cache.get(book_name)
+        # if cached is not None:
+        #     print(f"[crawler] Using cached results for '{book_name}'")
+        #     return [BookResult(**r) for r in cached]
         
         # Configure HTTP client with connection pooling
         limits = httpx.Limits(
@@ -769,7 +764,7 @@ class BookCrawler:
                 async with semaphore:
                     # Random delay before each engine to avoid patterns
                     await asyncio.sleep(random.uniform(0.2, 0.8))
-                    return await self.http_client.search_engine(engine, search_query, client)
+                    return await self.http_client.search_engine(engine, book_name, client)
             
             tasks = [search_with_semaphore(engine) for engine in SEARCH_ENGINES_CONFIG]
             engine_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -784,7 +779,7 @@ class BookCrawler:
         
         # Process results
         if not all_results:
-            print(f"[crawler] No results found for '{search_query}'")
+            print(f"[crawler] No results found for '{book_name}'")
             return []
         
         # Deduplicate
@@ -794,43 +789,13 @@ class BookCrawler:
         filtered = self.processor.filter_low_relevance(deduped)
         
         # Enrich
-        enriched = self.processor.enrich_results(filtered, f"{first_name} {last_name}")
+        enriched = self.processor.enrich_results(filtered, book_name)
         
         # Sort
         sorted_results = self.processor.sort_by_relevance(enriched)
         
-        # Strict exact file name validation
-        strict = []
-        fn_low = f_name.lower()
-        ln_low = l_name.lower()
-        
-        for r in sorted_results:
-            url_low = r.url.lower()
-            title_low = r.title.lower()
-            
-            try:
-                parsed = urlparse(url_low)
-                path = parsed.path
-                filename = path.split("/")[-1] if path else ""
-                filename = unquote(filename)
-                
-                # Yahoo image search and others sometimes match the PDF file extension regex
-                if "images.search.yahoo.com" in url_low or "bing.com/images" in url_low:
-                    continue
-
-                if filename.endswith(".pdf"):
-                    base_name = filename[:-4].strip() # Remove .pdf
-                    # Make it looser to find more combinations, relying on first and last name being somewhere in the title or the filename
-                    if (fn_low in base_name and ln_low in base_name) or (fn_low in title_low and ln_low in title_low):
-                        strict.append(r)
-                else:
-                    if (fn_low in url_low and ln_low in url_low) or (fn_low in title_low and ln_low in title_low):
-                        strict.append(r)
-            except Exception:
-                pass
-        
         # Limit results
-        final_results = strict[:CrawlerConfig.MAX_RESULTS]
+        final_results = sorted_results[:CrawlerConfig.MAX_RESULTS]
         
         # Cache results (BookResult is a Pydantic model, but keep safe fallbacks).
         cacheable = [
@@ -840,9 +805,9 @@ class BookCrawler:
             else r.__dict__
             for r in final_results
         ]
-        self.cache.set(search_query, cacheable)
+        self.cache.set(book_name, cacheable)
         
-        print(f"[crawler] Found {len(final_results)} unique PDF results for '{search_query}'")
+        print(f"[crawler] Found {len(final_results)} unique PDF results for '{book_name}'")
         
         return final_results
 
@@ -856,7 +821,7 @@ async def cleanup_cache():
 
 
 # ============= MAIN FUNCTION =============
-async def search_book(first_name: str, last_name: str) -> List[BookResult]:
+async def search_book(book_name: str) -> List[BookResult]:
     """Public API function"""
     crawler = BookCrawler()
     
@@ -864,7 +829,7 @@ async def search_book(first_name: str, last_name: str) -> List[BookResult]:
     if random.random() < 0.01:  # 1% chance
         await cleanup_cache()
     
-    return await crawler.search(first_name, last_name)
+    return await crawler.search(book_name)
 
 
 # ============= BACKWARD COMPATIBILITY =============

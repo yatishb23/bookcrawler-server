@@ -597,7 +597,7 @@ class EnhancedHTTPClient:
                 # Rate limited - wait longer
                 wait_time = random.uniform(5, 15)
                 await asyncio.sleep(wait_time)
-                raise httpx.TooManyRequests("Rate limited")
+                raise Exception("Rate limited: 429 Too Many Requests")
             else:
                 print(f"[crawler] {engine.name} returned status {response.status_code}")
                 return None

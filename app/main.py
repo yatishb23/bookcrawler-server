@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.models import SavedBook
 from app.services.crawler import search_book
-from app.services.crawler1 import search_book as search_resume
+from app.services.resume_crawler import search_book as search_resume
 from app.services.pdf_service import fetch_pdf_bytes, first_page_preview_jpeg
 from app.services.redis_client import get_redis, close_redis
 
@@ -88,28 +88,28 @@ async def get_resumes(firstName: str | None = Query(default=None), lastName: str
     if not firstName or not lastName:
         raise HTTPException(status_code=400, detail="Query parameters 'firstName' and 'lastName' are required")
 
-    # cache_key = f"resume_search:{firstName.lower()}:{lastName.lower()}"
+    # cache_key = f"resume:{firstName.strip().lower()}:{lastName.strip().lower()}"
 
-    # Try to get from cache
+    # # Try to get from cache, but don't fail if Redis is down
     # try:
     #     client = await get_redis()
     #     cached = await client.get(cache_key)
     #     if cached:
     #         return json.loads(cached)
     # except Exception as exc:
-    #     print(f"[redis] Cache get error: {exc}")
+    #     print(f"[redis] Resume cache get error: {exc}")
 
-    results = await search_resume(firstName, lastName)
+    results = await search_resume(firstName+"_"+lastName+"_Resume")
 
     if not results:
         raise HTTPException(status_code=404, detail="No resumes found")
 
-    # Try to cache results
+    # Try to cache results, but don't fail if Redis is down
     # try:
     #     client = await get_redis()
     #     await client.set(cache_key, json.dumps([r.model_dump() for r in results]), ex=CACHE_EXPIRATION)
     # except Exception as exc:
-    #     print(f"[redis] Cache set error: {exc}")
+    #     print(f"[redis] Resume cache set error: {exc}")
 
     return [r.model_dump() for r in results]
 
