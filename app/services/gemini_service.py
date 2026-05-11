@@ -37,7 +37,7 @@ async def analyze_combined_resumes(combined_text: str) -> dict:
     try:
         client = genai.Client(api_key=settings.gemini_api_key)
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.1-flash-lite-preview',
             contents=prompt,
         )
         text = response.text.replace("```json", "").replace("```", "").strip()
