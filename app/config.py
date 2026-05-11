@@ -38,5 +38,4 @@ class Settings(BaseSettings):
         # Deduplicate while preserving order.
         return list(dict.fromkeys(origins))
 
-
 settings = Settings()
