@@ -91,13 +91,13 @@ async def get_resumes(firstName: str | None = Query(default=None), lastName: str
     cache_key = f"resume_search:{firstName.lower()}:{lastName.lower()}"
 
     # Try to get from cache
-    try:
-        client = await get_redis()
-        cached = await client.get(cache_key)
-        if cached:
-            return json.loads(cached)
-    except Exception as exc:
-        print(f"[redis] Cache get error: {exc}")
+    # try:
+    #     client = await get_redis()
+    #     cached = await client.get(cache_key)
+    #     if cached:
+    #         return json.loads(cached)
+    # except Exception as exc:
+    #     print(f"[redis] Cache get error: {exc}")
 
     results = await search_resume(firstName, lastName)
 
@@ -105,11 +105,11 @@ async def get_resumes(firstName: str | None = Query(default=None), lastName: str
         raise HTTPException(status_code=404, detail="No resumes found")
 
     # Try to cache results
-    try:
-        client = await get_redis()
-        await client.set(cache_key, json.dumps([r.model_dump() for r in results]), ex=CACHE_EXPIRATION)
-    except Exception as exc:
-        print(f"[redis] Cache set error: {exc}")
+    # try:
+    #     client = await get_redis()
+    #     await client.set(cache_key, json.dumps([r.model_dump() for r in results]), ex=CACHE_EXPIRATION)
+    # except Exception as exc:
+    #     print(f"[redis] Cache set error: {exc}")
 
     return [r.model_dump() for r in results]
 

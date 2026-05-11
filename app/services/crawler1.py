@@ -735,16 +735,8 @@ class BookCrawler:
         f_name = first_name.strip()
         l_name = last_name.strip()
         
-        # Build a robust query covering common resume naming conventions
-        name_queries = [
-            f'"{f_name} {l_name}"',
-            f'"{f_name}_{l_name}.pdf"',
-            f'"{f_name}_{l_name}_Resume.pdf"',
-            f'"{f_name}_Resume.pdf"',
-            f'"{f_name}{l_name}.pdf"',
-            f'"{f_name}_{l_name}_CV.pdf"'
-        ]
-        search_query = f'({" OR ".join(name_queries)}) (resume OR cv)'
+        # Simple, effective query to not break search engine limits
+        search_query = f'"{f_name} {l_name}" OR "{f_name}_{l_name}" OR "{f_name}{l_name}" resume OR cv'
         
         # Check cache
         cached = self.cache.get(search_query)
@@ -812,26 +804,10 @@ class BookCrawler:
         fn_low = f_name.lower()
         ln_low = l_name.lower()
         
-        # Valid exact filenames we want to catch (without .pdf extension for easy checking)
-        exact_matches = {
-            f"{fn_low}_{ln_low}",
-            f"{fn_low}-{ln_low}",
-            f"{fn_low}{ln_low}",
-            f"{fn_low}_{ln_low}_resume",
-            f"{fn_low}-{ln_low}-resume",
-            f"{fn_low}{ln_low}resume",
-            f"{fn_low}_{ln_low}_cv",
-            f"{fn_low}-{ln_low}-cv",
-            f"{fn_low}{ln_low}cv",
-            f"{fn_low}_resume",
-            f"{fn_low}-resume",
-            f"{fn_low}resume"
-        }
-        
         for r in sorted_results:
             url_low = r.url.lower()
+            title_low = r.title.lower()
             
-            # Extract just the filename from URL
             try:
                 parsed = urlparse(url_low)
                 path = parsed.path
@@ -842,10 +818,13 @@ class BookCrawler:
                 if "images.search.yahoo.com" in url_low or "bing.com/images" in url_low:
                     continue
 
-                # Check if it ends in .pdf and matches one of the exact names
                 if filename.endswith(".pdf"):
                     base_name = filename[:-4].strip() # Remove .pdf
-                    if base_name in exact_matches or (fn_low in base_name and ln_low in base_name):
+                    # Make it looser to find more combinations, relying on first and last name being somewhere in the title or the filename
+                    if (fn_low in base_name and ln_low in base_name) or (fn_low in title_low and ln_low in title_low):
+                        strict.append(r)
+                else:
+                    if (fn_low in url_low and ln_low in url_low) or (fn_low in title_low and ln_low in title_low):
                         strict.append(r)
             except Exception:
                 pass
