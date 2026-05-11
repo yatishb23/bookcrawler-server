@@ -11,11 +11,12 @@ async def analyze_combined_resumes(combined_text: str) -> dict:
         return {"error": "GEMINI_API_KEY is not configured", "summary": "Gemini API key is missing."}
 
     prompt = f"""
-    You are an expert recruiter and data parser. I am providing you with the text extracted from multiple PDF resumes found online. 
-    Your task is to analyze this text and extract:
-    1. The primary Contact Info (Name, Emails, Phone numbers, LinkedIn/GitHub links).
-    2. A brief 2-3 sentence summary of the person's professional profile based on all the documents.
-    3. The main skills or technologies they are proficient in.
+    You are an expert recruiter and data parser. I am providing you with the combined text extracted from multiple PDF resumes found online. 
+    These resumes might belong to the same person or different people with the same name.
+    Your task is to carefully analyze ALL the provided text from ALL documents and extract:
+    1. The primary Contact Info (Name, Emails, Phone numbers, LinkedIn/GitHub links) aggregated from all the documents.
+    2. A brief 3-5 sentence summary of the professional profile(s) considering ALL the documents. If there are distinct profiles, mention them.
+    3. The main skills or technologies they are proficient in, combined from all documents.
 
     Return the final result strictly as a valid JSON object with the following schema, and do not include any markdown backticks or formatting outside the JSON object:
     {{
@@ -29,7 +30,7 @@ async def analyze_combined_resumes(combined_text: str) -> dict:
 
     Text Extract:
     ---
-    {combined_text[:30000]} # Limit text length to avoid token limits
+    {combined_text[:150000]} # Limit text length but allow plenty for multiple CVs
     ---
     """
     

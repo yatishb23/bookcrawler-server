@@ -148,9 +148,9 @@ async def analyze_resumes(firstName: str | None = Query(default=None), lastName:
     
     for idx, (text, url) in enumerate(extracted_data):
         if text:
-            valid_texts.append(text)
+            valid_texts.append(f"=== DOCUMENT {idx + 1} ({url}) ===\n{text}\n")
             used_documents.append(top_results_pool[idx])
-            if len(valid_texts) >= 5: # Limit to 5 successful documents max
+            if len(valid_texts) >= 10: # Limit to 10 successful documents max
                 break
     
     combined_text = "\n".join(valid_texts)
