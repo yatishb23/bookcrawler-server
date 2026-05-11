@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     frontend_origins: str = Field(default="", alias="FRONTEND_ORIGINS")
     use_proxy: bool = Field(default=False, alias="USE_PROXY")
     proxy_ips: str = Field(default="", alias="PROXY_IPS")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

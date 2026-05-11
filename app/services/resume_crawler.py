@@ -345,6 +345,14 @@ class EnhancedParser:
                 if not link:
                     return None
             
+            # Clean Yahoo redirect URLs
+            if "r.search.yahoo.com" in link and "RU=" in link:
+                import re
+                from urllib.parse import unquote
+                match = re.search(r'RU=([^/]+)', link)
+                if match:
+                    link = unquote(match.group(1))
+
             # Ensure it's a PDF link
             if ".pdf" not in link.lower():
                 return None

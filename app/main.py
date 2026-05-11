@@ -9,8 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.models import SavedBook
 from app.services.crawler import search_book
 from app.services.resume_crawler import search_book as search_resume
-from app.services.pdf_service import fetch_pdf_bytes, first_page_preview_jpeg
+from app.services.pdf_service import fetch_pdf_bytes, first_page_preview_jpeg, extract_pdf_text_from_bytes
 from app.services.redis_client import get_redis, close_redis
+from app.services.gemini_service import analyze_combined_resumes
+import asyncio
 
 CACHE_EXPIRATION = 60 * 60 * 24
 VISITOR_KEY = "unique_visitors_crawler"
@@ -112,6 +114,59 @@ async def get_resumes(firstName: str | None = Query(default=None), lastName: str
     #     print(f"[redis] Resume cache set error: {exc}")
 
     return [r.model_dump() for r in results]
+
+
+@app.get("/api/v1/analyzeResumes")
+async def analyze_resumes(firstName: str | None = Query(default=None), lastName: str | None = Query(default=None)):
+    if not firstName or not lastName:
+        raise HTTPException(status_code=400, detail="Query parameters 'firstName' and 'lastName' are required")
+
+    # 1. Search for resumes
+    results = await search_resume(firstName + "_" + lastName + "_Resume")
+    if not results:
+        raise HTTPException(status_code=404, detail="No resumes found")
+
+    # 2. Try fetching PDFs concurrently, but allow failures
+    async def fetch_and_extract(url: str):
+        try:
+            pdf_bytes, _ = await fetch_pdf_bytes(url)
+            text = extract_pdf_text_from_bytes(pdf_bytes)
+            if not text.strip():
+                return None, None
+            return f"--- Document Source: {url} ---\n{text}\n", url
+        except Exception as e:
+            print(f"Failed to extract from {url}: {e}")
+            return None, None
+
+    # Try up to top 15 results to find at least some valid texts
+    top_results_pool = results[:15]
+    tasks = [fetch_and_extract(r.url) for r in top_results_pool]
+    extracted_data = await asyncio.gather(*tasks)
+    
+    valid_texts = []
+    used_documents = []
+    
+    for idx, (text, url) in enumerate(extracted_data):
+        if text:
+            valid_texts.append(text)
+            used_documents.append(top_results_pool[idx])
+            if len(valid_texts) >= 5: # Limit to 5 successful documents max
+                break
+    
+    combined_text = "\n".join(valid_texts)
+    
+    # 3. If no text was extracted
+    if not combined_text.strip():
+        raise HTTPException(status_code=500, detail="Could not extract text from any of the resume links.")
+
+    # 4. Analyze with Gemini
+    analysis_result = await analyze_combined_resumes(combined_text)
+
+    # 5. Return the analysis and the documents used
+    return {
+        "analysis": analysis_result,
+        "documents": [r.model_dump() for r in used_documents]
+    }
 
 
 @app.get("/api/v1/proxyPdf")

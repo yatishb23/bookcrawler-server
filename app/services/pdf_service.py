@@ -11,7 +11,7 @@ DEFAULT_UA = (
 )
 
 
-async def fetch_pdf_bytes(url: str) -> tuple[bytes, str]:
+async def fetch_pdf_bytes(url: str, min_pages: int = 0) -> tuple[bytes, str]:
     parsed = urlparse(url)
     referer = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
 
@@ -39,8 +39,8 @@ async def fetch_pdf_bytes(url: str) -> tuple[bytes, str]:
 
     try:
         with fitz.open(stream=body, filetype="pdf") as doc:
-            if len(doc) <= 50:
-                raise ValueError("PDF must have more than 50 pages")
+            if len(doc) < min_pages:
+                raise ValueError(f"PDF must have at least {min_pages} pages")
     except fitz.FileDataError:
         raise ValueError("Invalid PDF file structure")
     except ValueError:
@@ -64,6 +64,18 @@ def first_page_preview_jpeg(pdf_bytes: bytes, scale: float = 0.5, quality: int =
 
         img_bytes = pix.tobytes("jpg", jpg_quality=quality)
         return img_bytes
+
+
+def extract_pdf_text_from_bytes(pdf_bytes: bytes) -> str:
+    """Extract all text from a PDF file."""
+    text = ""
+    try:
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            for page in doc:
+                text += page.get_text() + "\n"
+    except Exception as e:
+        print(f"[pdf_service] Error extracting text: {e}")
+    return text
 
 
 def extract_pdf_metadata(pdf_bytes: bytes) -> dict:
