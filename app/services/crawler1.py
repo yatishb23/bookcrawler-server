@@ -248,11 +248,11 @@ SEARCH_ENGINES_CONFIG = [
     SearchEngine(
         name="DuckDuckGo",
         urls=[
-            "https://duckduckgo.com/html/?q={q}+filetype:pdf",
-            "https://duckduckgo.com/html/?q={q}+pdf",
             "https://html.duckduckgo.com/html/?q={q}+filetype:pdf",
+            "https://html.duckduckgo.com/html/?q={q}+pdf",
         ],
         selectors=[
+            'a.result__url',
             'a.result__a',
             'a[data-testid="result-title-a"]',
             'a[class*="result"]',
@@ -292,10 +292,9 @@ SEARCH_ENGINES_CONFIG = [
             "https://search.yahoo.com/search?p={q}+pdf",
         ],
         selectors=[
+            'div[class*="algo"] div[class*="compTitle"] a',
             'a[href*=".pdf"]',
             'h3 a',
-            'div[class*="algo"] a',
-            'a[class*="title"]',
         ],
         headers={
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -808,15 +807,48 @@ class BookCrawler:
         # Sort
         sorted_results = self.processor.sort_by_relevance(enriched)
         
-        # Strict name validation in title or URL
+        # Strict exact file name validation
         strict = []
         fn_low = f_name.lower()
         ln_low = l_name.lower()
+        
+        # Valid exact filenames we want to catch (without .pdf extension for easy checking)
+        exact_matches = {
+            f"{fn_low}_{ln_low}",
+            f"{fn_low}-{ln_low}",
+            f"{fn_low}{ln_low}",
+            f"{fn_low}_{ln_low}_resume",
+            f"{fn_low}-{ln_low}-resume",
+            f"{fn_low}{ln_low}resume",
+            f"{fn_low}_{ln_low}_cv",
+            f"{fn_low}-{ln_low}-cv",
+            f"{fn_low}{ln_low}cv",
+            f"{fn_low}_resume",
+            f"{fn_low}-resume",
+            f"{fn_low}resume"
+        }
+        
         for r in sorted_results:
-            title_low = r.title.lower()
             url_low = r.url.lower()
-            if (fn_low in title_low and ln_low in title_low) or (fn_low in url_low and ln_low in url_low):
-                strict.append(r)
+            
+            # Extract just the filename from URL
+            try:
+                parsed = urlparse(url_low)
+                path = parsed.path
+                filename = path.split("/")[-1] if path else ""
+                filename = unquote(filename)
+                
+                # Yahoo image search and others sometimes match the PDF file extension regex
+                if "images.search.yahoo.com" in url_low or "bing.com/images" in url_low:
+                    continue
+
+                # Check if it ends in .pdf and matches one of the exact names
+                if filename.endswith(".pdf"):
+                    base_name = filename[:-4].strip() # Remove .pdf
+                    if base_name in exact_matches or (fn_low in base_name and ln_low in base_name):
+                        strict.append(r)
+            except Exception:
+                pass
         
         # Limit results
         final_results = strict[:CrawlerConfig.MAX_RESULTS]
