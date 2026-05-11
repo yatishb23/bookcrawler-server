@@ -13,3 +13,4 @@ fake-useragent
 cloudscraper
 aiofiles
 playwright
+google-genai
