@@ -101,7 +101,8 @@ async def get_resumes(firstName: str | None = Query(default=None), lastName: str
     # except Exception as exc:
     #     print(f"[redis] Resume cache get error: {exc}")
 
-    results = await search_resume(firstName+"_"+lastName+"_Resume")
+    query_str = f'"{firstName} {lastName}" OR "{firstName}_{lastName}" OR "{firstName}_{lastName}_Resume" OR "{firstName}_Resume"'
+    results = await search_resume(query_str)
 
     if not results:
         raise HTTPException(status_code=404, detail="No resumes found")
@@ -122,7 +123,8 @@ async def analyze_resumes(firstName: str | None = Query(default=None), lastName:
         raise HTTPException(status_code=400, detail="Query parameters 'firstName' and 'lastName' are required")
 
     # 1. Search for resumes
-    results = await search_resume(firstName + "_" + lastName + "_Resume")
+    query_str = f'"{firstName} {lastName}" OR "{firstName}_{lastName}" OR "{firstName}_{lastName}_Resume" OR "{firstName}_Resume"'
+    results = await search_resume(query_str)
     if not results:
         raise HTTPException(status_code=404, detail="No resumes found")
 
