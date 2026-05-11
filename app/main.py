@@ -88,7 +88,7 @@ async def get_resumes(firstName: str | None = Query(default=None), lastName: str
     if not firstName or not lastName:
         raise HTTPException(status_code=400, detail="Query parameters 'firstName' and 'lastName' are required")
 
-    cache_key = f"resume_search:{firstName.lower()}:{lastName.lower()}"
+    # cache_key = f"resume_search:{firstName.lower()}:{lastName.lower()}"
 
     # Try to get from cache
     # try:
